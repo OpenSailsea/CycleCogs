@@ -6,7 +6,7 @@ from discord import Webhook, SyncWebhook
 import aiohttp
 from .utils import extract_urls, convert_to_linkvertise
 
-FOOTER_TEXT = "\n---\n*Links in this message have been converted to Linkvertise links. Support this server to whitelist your messages.*"
+DEFAULT_FOOTER = "\n\n> *The link in this message has been converted. You need to watch an advertisement provided by our sponsors to continue accessing the link.\nBy boosting this server, you can have your messages added to the link whitelist.\nIf you believe this link should not have been converted, please contact our staff team.*"
 
 class LinkvertiseCog(commands.Cog):
     """Convert message links to Linkvertise links"""
@@ -15,15 +15,12 @@ class LinkvertiseCog(commands.Cog):
         super().__init__()
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890)
-        default_member = {
-            "webhooks": {}  # channel_id: {"id": webhook_id, "token": webhook_token}
-        }
         default_guild = {
             "account_id": None,
-            "whitelisted_role_id": None
+            "whitelisted_role_id": None,
+            "footer_text": DEFAULT_FOOTER
         }
         self.config.register_guild(**default_guild)
-        self.config.register_member(**default_member)
         self.linkvertise_client = LinkvertiseClient()
         self.webhook_session = aiohttp.ClientSession()
     
@@ -77,60 +74,41 @@ class LinkvertiseCog(commands.Cog):
         if new_content == message.content:  # No links were converted
             return
             
-        new_content += FOOTER_TEXT
+        # Add footer text
+        footer_text = await guild_config.footer_text()
+        new_content += footer_text
         
         # Delete original message and send new one
         try:
             await message.delete()
             
-            # Get or create webhook for this user in this channel
-            member_config = self.config.member(message.author)
-            webhooks = await member_config.webhooks()
-            channel_id = str(message.channel.id)  # Convert to string for JSON storage
-            
-            webhook = None
-            if channel_id in webhooks:
-                webhook_data = webhooks[channel_id]
-                try:
-                    webhook = Webhook.partial(
-                        webhook_data["id"], 
-                        webhook_data["token"], 
-                        session=self.webhook_session
-                    )
-                    # Quick test to verify webhook is still valid
-                    await webhook.fetch()
-                except (discord.NotFound, discord.HTTPException):
-                    webhook = None
-                    
-            if not webhook:
-                try:
-                    webhook = await message.channel.create_webhook(
-                        name=f"{message.author.display_name}'s Linkvertise",
-                        reason=f"Automatic webhook creation for user {message.author.id}"
-                    )
-                    webhooks[channel_id] = {
-                        "id": webhook.id,
-                        "token": webhook.token
-                    }
-                    await member_config.webhooks.set(webhooks)
-                except discord.Forbidden:
-                    await message.channel.send(
-                        new_content,
-                        allowed_mentions=discord.AllowedMentions.none()
-                    )
-                    return
-                    
-            # Send message through webhook
-            await webhook.send(
-                content=new_content,
-                username=message.author.display_name,
-                avatar_url=message.author.display_avatar.url,
-                allowed_mentions=discord.AllowedMentions.none()
-            )
+            try:
+                # Create webhook
+                webhook = await message.channel.create_webhook(
+                    name=f"{message.author.display_name}",
+                    reason=f"Temporary webhook for message conversion"
+                )
+                
+                # Send message through webhook
+                await webhook.send(
+                    content=new_content,
+                    username=message.author.display_name,
+                    avatar_url=message.author.display_avatar.url,
+                    allowed_mentions=discord.AllowedMentions.none()
+                )
+                
+                # Delete webhook immediately
+                await webhook.delete()
+            except discord.Forbidden:
+                # Fallback to normal message if no webhook permission
+                await message.channel.send(
+                    new_content,
+                    allowed_mentions=discord.AllowedMentions.none()
+                )
         except discord.Forbidden:
             # If no permission to delete, reply with converted links
             await message.reply(
-                f"Links converted: {new_url}" + FOOTER_TEXT,
+                f"Links converted: {new_url}" + footer_text,
                 allowed_mentions=discord.AllowedMentions.none()
             )
     
@@ -153,6 +131,20 @@ class LinkvertiseCog(commands.Cog):
         """Set Linkvertise account ID"""
         await self.config.guild(ctx.guild).account_id.set(account_id)
         await ctx.send("Updated Linkvertise account ID")
+    
+    @linkvertise_group.command(name="setfooter")
+    @commands.admin_or_permissions(administrator=True)
+    async def set_footer(self, ctx: commands.Context, *, text: str):
+        """Set custom footer text for converted messages"""
+        await self.config.guild(ctx.guild).footer_text.set(text)
+        await ctx.send("Updated footer text")
+    
+    @linkvertise_group.command(name="resetfooter")
+    @commands.admin_or_permissions(administrator=True)
+    async def reset_footer(self, ctx: commands.Context):
+        """Reset footer text to default"""
+        await self.config.guild(ctx.guild).footer_text.set(DEFAULT_FOOTER)
+        await ctx.send("Reset footer text to default")
             
     async def cog_unload(self):
         """Close session when cog is unloaded"""
