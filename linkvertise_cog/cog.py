@@ -15,12 +15,16 @@ class LinkvertiseCog(commands.Cog):
         super().__init__()
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890)
+        default_channel = {
+            "webhook_id": None,
+            "webhook_token": None
+        }
         default_guild = {
             "account_id": None,
-            "whitelisted_role_id": None,
-            "webhook_url": None
+            "whitelisted_role_id": None
         }
         self.config.register_guild(**default_guild)
+        self.config.register_channel(**default_channel)
         self.linkvertise_client = LinkvertiseClient()
         self.webhook_session = aiohttp.ClientSession()
     
@@ -80,23 +84,41 @@ class LinkvertiseCog(commands.Cog):
         try:
             await message.delete()
             
-            webhook_url = await guild_config.webhook_url()
-            if webhook_url and self.webhook_session:
-                # Send message using webhook
-                async with aiohttp.ClientSession() as session:
-                    webhook = Webhook.from_url(webhook_url, session=session)
-                    await webhook.send(
-                        content=new_content,
-                        username=message.author.display_name,
-                        avatar_url=message.author.display_avatar.url,
+            # Get or create webhook
+            channel_config = self.config.channel(message.channel)
+            webhook_id = await channel_config.webhook_id()
+            webhook_token = await channel_config.webhook_token()
+            
+            webhook = None
+            if webhook_id and webhook_token:
+                try:
+                    webhook = Webhook.partial(webhook_id, webhook_token, session=self.webhook_session)
+                    await webhook.send(content="Test", delete_after=0)  # Test webhook
+                except discord.NotFound:
+                    webhook = None
+                    
+            if not webhook:
+                try:
+                    webhook = await message.channel.create_webhook(
+                        name=f"Linkvertise ({message.channel.name})",
+                        reason="Automatic webhook creation for Linkvertise cog"
+                    )
+                    await channel_config.webhook_id.set(webhook.id)
+                    await channel_config.webhook_token.set(webhook.token)
+                except discord.Forbidden:
+                    await message.channel.send(
+                        new_content,
                         allowed_mentions=discord.AllowedMentions.none()
                     )
-            else:
-                # Send message normally
-                await message.channel.send(
-                    new_content,
-                    allowed_mentions=discord.AllowedMentions.none()
-                )
+                    return
+                    
+            # Send message through webhook
+            await webhook.send(
+                content=new_content,
+                username=message.author.display_name,
+                avatar_url=message.author.display_avatar.url,
+                allowed_mentions=discord.AllowedMentions.none()
+            )
         except discord.Forbidden:
             # If no permission to delete, reply with converted links
             await message.reply(
@@ -123,28 +145,6 @@ class LinkvertiseCog(commands.Cog):
         """Set Linkvertise account ID"""
         await self.config.guild(ctx.guild).account_id.set(account_id)
         await ctx.send("Updated Linkvertise account ID")
-            
-    @linkvertise_group.command(name="setwebhook")
-    @commands.admin_or_permissions(administrator=True)
-    async def set_webhook(self, ctx: commands.Context, webhook_url: str):
-        """Set webhook URL for sending messages"""
-        # Validate webhook URL
-        try:
-            async with aiohttp.ClientSession() as session:
-                webhook = Webhook.from_url(webhook_url, session=session)
-                # Try sending test message
-                await webhook.send("Webhook test message", username="Linkvertise Bot")
-        except Exception as e:
-            await ctx.send(f"Invalid webhook URL: {str(e)}")
-            return
-            
-        await self.config.guild(ctx.guild).webhook_url.set(webhook_url)
-        await ctx.send("Updated webhook URL")
-        # Delete message containing URL for security
-        try:
-            await ctx.message.delete()
-        except discord.Forbidden:
-            pass
             
     async def cog_unload(self):
         """Close session when cog is unloaded"""
