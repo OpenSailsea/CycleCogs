@@ -75,8 +75,7 @@ class LinkvertiseCog(commands.Cog):
             return
             
         # Add footer text
-        footer_text = await guild_config.footer_text()
-        new_content += "\n\n"
+        footer_text = "\n\n" + await guild_config.footer_text()
         new_content += footer_text
         
         # Delete original message and send new one
