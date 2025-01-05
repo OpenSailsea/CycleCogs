@@ -15,16 +15,15 @@ class LinkvertiseCog(commands.Cog):
         super().__init__()
         self.bot = bot
         self.config = Config.get_conf(self, identifier=1234567890)
-        default_channel = {
-            "webhook_id": None,
-            "webhook_token": None
+        default_member = {
+            "webhooks": {}  # channel_id: {"id": webhook_id, "token": webhook_token}
         }
         default_guild = {
             "account_id": None,
             "whitelisted_role_id": None
         }
         self.config.register_guild(**default_guild)
-        self.config.register_channel(**default_channel)
+        self.config.register_member(**default_member)
         self.linkvertise_client = LinkvertiseClient()
         self.webhook_session = aiohttp.ClientSession()
     
@@ -84,31 +83,36 @@ class LinkvertiseCog(commands.Cog):
         try:
             await message.delete()
             
-            # Get or create webhook
-            channel_config = self.config.channel(message.channel)
-            webhook_id = await channel_config.webhook_id()
-            webhook_token = await channel_config.webhook_token()
+            # Get or create webhook for this user in this channel
+            member_config = self.config.member(message.author)
+            webhooks = await member_config.webhooks()
+            channel_id = str(message.channel.id)  # Convert to string for JSON storage
             
             webhook = None
-            if webhook_id and webhook_token:
+            if channel_id in webhooks:
+                webhook_data = webhooks[channel_id]
                 try:
-                    webhook = Webhook.partial(webhook_id, webhook_token, session=self.webhook_session)
-                    await webhook.send(content="Webhook test")  # Test webhook
-                    # Clean up test message
-                    async for message in message.channel.history(limit=1):
-                        if message.webhook_id == webhook_id:
-                            await message.delete()
-                except discord.NotFound:
+                    webhook = Webhook.partial(
+                        webhook_data["id"], 
+                        webhook_data["token"], 
+                        session=self.webhook_session
+                    )
+                    # Quick test to verify webhook is still valid
+                    await webhook.fetch()
+                except (discord.NotFound, discord.HTTPException):
                     webhook = None
                     
             if not webhook:
                 try:
                     webhook = await message.channel.create_webhook(
-                        name=f"Linkvertise ({message.channel.name})",
-                        reason="Automatic webhook creation for Linkvertise cog"
+                        name=f"{message.author.display_name}'s Linkvertise",
+                        reason=f"Automatic webhook creation for user {message.author.id}"
                     )
-                    await channel_config.webhook_id.set(webhook.id)
-                    await channel_config.webhook_token.set(webhook.token)
+                    webhooks[channel_id] = {
+                        "id": webhook.id,
+                        "token": webhook.token
+                    }
+                    await member_config.webhooks.set(webhooks)
                 except discord.Forbidden:
                     await message.channel.send(
                         new_content,
