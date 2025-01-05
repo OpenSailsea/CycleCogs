@@ -1,6 +1,6 @@
 from typing import Optional
 import discord
-from redbot.core import commands
+from redbot.core import commands, Config
 from linkvertise import LinkvertiseClient
 from discord import Webhook, SyncWebhook
 import aiohttp
@@ -14,26 +14,14 @@ class LinkvertiseCog(commands.Cog):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
+        self.config = Config.get_conf(self, identifier=1234567890)
+        default_guild = {
+            "account_id": None,
+            "whitelisted_role_id": None,
+            "webhook_url": None
+        }
+        self.config.register_guild(**default_guild)
         self.linkvertise_client = LinkvertiseClient()
-        self.whitelisted_role_id = None
-        self.webhook_url = None
-        self.webhook_session = None
-        self.account_id = None
-    
-    async def cog_load(self):
-        """Initialize Linkvertise client when cog is loaded"""
-        # Get config
-        config = await self.bot.get_cog_config(self)
-        if not config:
-            raise commands.ExtensionError("Configuration not found")
-            
-        account_id = config.get("account_id")
-        if not account_id:
-            raise commands.ExtensionError("Linkvertise account ID not set")
-            
-        self.whitelisted_role_id = config.get("whitelisted_role_id")
-        self.webhook_url = config.get("webhook_url")
-        self.account_id = account_id
         self.webhook_session = aiohttp.ClientSession()
     
     @commands.Cog.listener()
@@ -47,10 +35,17 @@ class LinkvertiseCog(commands.Cog):
         if not isinstance(message.channel, discord.TextChannel):
             return
             
+        # Get guild settings
+        guild_config = self.config.guild(message.guild)
+        account_id = await guild_config.account_id()
+        if not account_id:
+            return
+            
         # Check whitelist role
-        if self.whitelisted_role_id:
+        whitelisted_role_id = await guild_config.whitelisted_role_id()
+        if whitelisted_role_id:
             member_roles = [role.id for role in message.author.roles]
-            if self.whitelisted_role_id in member_roles:
+            if whitelisted_role_id in member_roles:
                 return
                 
         # Extract and check links
@@ -63,7 +58,7 @@ class LinkvertiseCog(commands.Cog):
         offset = 0
         
         for url, start, end in url_infos:
-            new_url = convert_to_linkvertise(url, self.linkvertise_client, self.account_id)
+            new_url = convert_to_linkvertise(url, self.linkvertise_client, account_id)
             if new_url == url:  # Conversion failed
                 continue
                 
@@ -85,10 +80,11 @@ class LinkvertiseCog(commands.Cog):
         try:
             await message.delete()
             
-            if self.webhook_url and self.webhook_session:
+            webhook_url = await guild_config.webhook_url()
+            if webhook_url and self.webhook_session:
                 # Send message using webhook
                 async with aiohttp.ClientSession() as session:
-                    webhook = Webhook.from_url(self.webhook_url, session=session)
+                    webhook = Webhook.from_url(webhook_url, session=session)
                     await webhook.send(
                         content=new_content,
                         username=message.author.display_name,
@@ -118,20 +114,14 @@ class LinkvertiseCog(commands.Cog):
     @commands.admin_or_permissions(administrator=True)
     async def set_whitelisted_role(self, ctx: commands.Context, role: discord.Role):
         """Set whitelist role"""
-        config = await self.bot.get_cog_config(self)
-        config["whitelisted_role_id"] = role.id
-        await self.bot.save_cog_config(self, config)
-        self.whitelisted_role_id = role.id
+        await self.config.guild(ctx.guild).whitelisted_role_id.set(role.id)
         await ctx.send(f"Set {role.name} as whitelist role")
     
     @linkvertise_group.command(name="setid")
     @commands.admin_or_permissions(administrator=True)
     async def set_account_id(self, ctx: commands.Context, account_id: int):
         """Set Linkvertise account ID"""
-        config = await self.bot.get_cog_config(self)
-        config["account_id"] = account_id
-        await self.bot.save_cog_config(self, config)
-        self.account_id = account_id
+        await self.config.guild(ctx.guild).account_id.set(account_id)
         await ctx.send("Updated Linkvertise account ID")
             
     @linkvertise_group.command(name="setwebhook")
@@ -148,10 +138,7 @@ class LinkvertiseCog(commands.Cog):
             await ctx.send(f"Invalid webhook URL: {str(e)}")
             return
             
-        config = await self.bot.get_cog_config(self)
-        config["webhook_url"] = webhook_url
-        await self.bot.save_cog_config(self, config)
-        self.webhook_url = webhook_url
+        await self.config.guild(ctx.guild).webhook_url.set(webhook_url)
         await ctx.send("Updated webhook URL")
         # Delete message containing URL for security
         try:
