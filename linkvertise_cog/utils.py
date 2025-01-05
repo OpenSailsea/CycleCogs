@@ -1,7 +1,7 @@
 import re
 from urllib.parse import urlparse
 import ipaddress
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import linkvertise
 
 URL_PATTERN = r'(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?:\/[^\s]*)?'
@@ -29,7 +29,7 @@ def is_valid_domain(domain: str) -> bool:
         
     return True
 
-def extract_urls(text: str) -> list[Tuple[str, int, int]]:
+def extract_urls(text: str) -> List[Tuple[str, int, int]]:
     """
     Extract all valid URLs from text
     Returns: List of (url, start_pos, end_pos) tuples
