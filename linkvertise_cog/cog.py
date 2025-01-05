@@ -93,7 +93,11 @@ class LinkvertiseCog(commands.Cog):
             if webhook_id and webhook_token:
                 try:
                     webhook = Webhook.partial(webhook_id, webhook_token, session=self.webhook_session)
-                    await webhook.send(content="Test", delete_after=0)  # Test webhook
+                    await webhook.send(content="Webhook test")  # Test webhook
+                    # Clean up test message
+                    async for message in message.channel.history(limit=1):
+                        if message.webhook_id == webhook_id:
+                            await message.delete()
                 except discord.NotFound:
                     webhook = None
                     
