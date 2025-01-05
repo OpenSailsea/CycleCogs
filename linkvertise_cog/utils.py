@@ -2,7 +2,7 @@ import re
 from urllib.parse import urlparse
 import ipaddress
 from typing import Optional, Tuple
-from linkvertise import LinkvertiseClient
+import linkvertise
 
 URL_PATTERN = r'(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?:\/[^\s]*)?'
 
@@ -44,7 +44,7 @@ def extract_urls(text: str) -> list[Tuple[str, int, int]]:
             
     return urls
 
-def convert_to_linkvertise(url: str, client: LinkvertiseClient, account_id: int) -> str:
+def convert_to_linkvertise(url: str, client: linkvertise.Client, account_id: int) -> str:
     """Convert URL to Linkvertise link"""
     if not url.startswith(('http://', 'https://')):
         url = f'http://{url}'

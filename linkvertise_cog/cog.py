@@ -1,7 +1,7 @@
 from typing import Optional
 import discord
 from discord.ext import commands
-from linkvertise import LinkvertiseClient
+import linkvertise
 from discord import Webhook, SyncWebhook
 import aiohttp
 from .utils import extract_urls, convert_to_linkvertise
@@ -13,7 +13,7 @@ class LinkvertiseCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
-        self.linkvertise_client = LinkvertiseClient()
+        self.linkvertise_client = linkvertise.Client()
         self.whitelisted_role_id = None
         self.webhook_url = None
         self.webhook_session = None

@@ -1,9 +1,9 @@
 {
-    "name": "Linkvertise",
+    "name": "LinkvertiseCog",
     "author": ["Cycle Bai"],
     "short": "Convert message links to Linkvertise links",
     "description": "Automatically converts links in messages to Linkvertise affiliate links. Supports multiple links per message and webhook integration for seamless message conversion.",
-    "install_msg": "Thanks for installing Linkvertise! You'll need to set up your Linkvertise account ID using `/linkvertise setid`. Optionally, you can set up a webhook for better message conversion using `/linkvertise setwebhook` and whitelist roles using `/linkvertise setrole`.",
+    "install_msg": "Thanks for installing LinkvertiseCog! You'll need to set up your Linkvertise account ID using `[p]linkvertise setid`. Optionally, you can set up a webhook for better message conversion using `[p]linkvertise setwebhook` and whitelist roles using `[p]linkvertise setrole`.",
     "tags": [
         "linkvertise",
         "affiliate",
