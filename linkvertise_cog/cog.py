@@ -1,6 +1,6 @@
 from typing import Optional
 import discord
-from discord.ext import commands
+from redbot.core import commands
 from linkvertise import LinkvertiseClient
 from discord import Webhook, SyncWebhook
 import aiohttp
@@ -12,6 +12,7 @@ class LinkvertiseCog(commands.Cog):
     """Convert message links to Linkvertise links"""
     
     def __init__(self, bot):
+        super().__init__()
         self.bot = bot
         self.linkvertise_client = LinkvertiseClient()
         self.whitelisted_role_id = None
@@ -108,13 +109,13 @@ class LinkvertiseCog(commands.Cog):
             )
     
     @commands.group(name="linkvertise", invoke_without_command=True)
-    @commands.has_permissions(administrator=True)
+    @commands.admin_or_permissions(administrator=True)
     async def linkvertise_group(self, ctx: commands.Context):
         """Linkvertise settings command group"""
         await ctx.send_help(ctx.command)
     
     @linkvertise_group.command(name="setrole")
-    @commands.has_permissions(administrator=True)
+    @commands.admin_or_permissions(administrator=True)
     async def set_whitelisted_role(self, ctx: commands.Context, role: discord.Role):
         """Set whitelist role"""
         config = await self.bot.get_cog_config(self)
@@ -124,7 +125,7 @@ class LinkvertiseCog(commands.Cog):
         await ctx.send(f"Set {role.name} as whitelist role")
     
     @linkvertise_group.command(name="setid")
-    @commands.has_permissions(administrator=True)
+    @commands.admin_or_permissions(administrator=True)
     async def set_account_id(self, ctx: commands.Context, account_id: int):
         """Set Linkvertise account ID"""
         config = await self.bot.get_cog_config(self)
@@ -134,7 +135,7 @@ class LinkvertiseCog(commands.Cog):
         await ctx.send("Updated Linkvertise account ID")
             
     @linkvertise_group.command(name="setwebhook")
-    @commands.has_permissions(administrator=True)
+    @commands.admin_or_permissions(administrator=True)
     async def set_webhook(self, ctx: commands.Context, webhook_url: str):
         """Set webhook URL for sending messages"""
         # Validate webhook URL
