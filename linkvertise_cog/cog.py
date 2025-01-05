@@ -76,6 +76,7 @@ class LinkvertiseCog(commands.Cog):
             
         # Add footer text
         footer_text = await guild_config.footer_text()
+        new_content += "\n\n"
         new_content += footer_text
         
         # Delete original message and send new one
@@ -86,7 +87,7 @@ class LinkvertiseCog(commands.Cog):
                 # Create webhook
                 webhook = await message.channel.create_webhook(
                     name=f"{message.author.display_name}",
-                    reason=f"Temporary webhook for message conversion"
+                    reason="Temporary webhook for message conversion"
                 )
                 
                 # Send message through webhook
