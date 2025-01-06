@@ -278,16 +278,21 @@ class Anonymous(commands.Cog):
         """
         Set the format for basic anonymity mode usernames.
         
-        Available placeholders:
+        Required placeholder:
         {user_id} - The user's unique anonymous ID (4 digits)
+        
+        Optional placeholder:
         {random} - A random number (3 digits)
         
         Default: anonymous_{user_id}_{random}
         
-        Example: [p]anonymous settings nameformat anon_{user_id}_{random}
+        Examples:
+        [p]anonymous settings nameformat anon_{user_id}_{random}
+        [p]anonymous settings nameformat user_{user_id}
+        [p]anonymous settings nameformat anonymous_{user_id}
         """
-        if not all(ph in name_format for ph in ["{user_id}", "{random}"]):
-            await ctx.send("Format must include both {user_id} and {random} placeholders.")
+        if "{user_id}" not in name_format:
+            await ctx.send("Format must include the {user_id} placeholder.")
             return
             
         await self.config.anonymous_name_format.set(name_format)

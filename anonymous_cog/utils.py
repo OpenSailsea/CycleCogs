@@ -70,12 +70,20 @@ class AnonymousUtils:
             return user.display_name
         elif mode == AnonymityMode.BASIC_ANONYMITY:
             user_id = await self.generate_anonymous_id(user.id, guild.id)
-            random_suffix = ''.join(random.choices(string.digits, k=3))
             name_format = await self.config.anonymous_name_format()
-            return name_format.format(
-                user_id=user_id,
-                random=random_suffix
-            )
+            
+            # 准备格式化参数
+            format_params = {"user_id": user_id}
+            
+            # 如果格式中包含 random 占位符，则生成随机数
+            if "{random}" in name_format:
+                format_params["random"] = ''.join(random.choices(string.digits, k=3))
+                
+            try:
+                return name_format.format(**format_params)
+            except KeyError:
+                # 如果格式化失败，返回默认格式
+                return f"anonymous_{user_id}"
         else:  # FULL_ANONYMITY
             return "anonymous"
             
