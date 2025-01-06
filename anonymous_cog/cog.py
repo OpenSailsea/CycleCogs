@@ -56,100 +56,156 @@ class Anonymous(commands.Cog):
         """Anonymous messaging system configuration commands."""
         pass
         
-    @_anonymous.command(name="enablechannels")
-    async def enable_channels(
-        self, 
-        ctx: commands.Context, 
-        channels: commands.Greedy[discord.TextChannel],
+    @_anonymous.group(name="channel")
+    async def _channel(self, ctx: commands.Context):
+        """Channel management commands."""
+        pass
+        
+    @_channel.command(name="add")
+    async def channel_add(
+        self,
+        ctx: commands.Context,
+        channel: discord.TextChannel,
         mode: str = AnonymityMode.BASIC_ANONYMITY.value
     ):
         """
-        Enable anonymous messaging in multiple channels with specified mode.
+        Add a channel to anonymous messaging with specified mode.
         
         Modes:
         - no_anonymity: Uses real username and avatar
         - basic_anonymity: Uses anonymous_{user_id}_{random} format
         - full_anonymity: Uses just 'anonymous'
         
-        Example: [p]anonymous enablechannels #channel1 #channel2 #channel3 basic_anonymity
+        Example: [p]anonymous channel add #channel basic_anonymity
         """
-        if not channels:
-            await ctx.send("Please specify at least one channel.")
-            return
-            
         try:
-            results = await self.utils.update_channels(ctx.guild, channels, mode, True)
+            results = await self.utils.update_channels(ctx.guild, [channel], mode, True)
             
-            # Format response
-            response = []
             if results["success"]:
-                response.append(f"Successfully enabled anonymous messaging in: {', '.join(results['success'])}")
-            if results["failed"]:
-                response.append(f"Failed to enable in: {', '.join(results['failed'])}")
+                await ctx.send(f"Successfully enabled anonymous messaging in {channel.mention} with mode: {mode}")
+            else:
+                await ctx.send(f"Failed to enable anonymous messaging in {channel.mention}")
                 
-            await ctx.send("\n".join(response))
-            
         except ValueError as e:
             await ctx.send(str(e))
-        
-    @_anonymous.command(name="disablechannels")
-    async def disable_channels(
+            
+    @_channel.command(name="remove")
+    async def channel_remove(
         self,
         ctx: commands.Context,
-        channels: commands.Greedy[discord.TextChannel]
+        channel: discord.TextChannel
     ):
         """
-        Disable anonymous messaging in multiple channels.
+        Remove a channel from anonymous messaging.
         
-        Example: [p]anonymous disablechannels #channel1 #channel2 #channel3
+        Example: [p]anonymous channel remove #channel
         """
-        if not channels:
-            await ctx.send("Please specify at least one channel.")
+        results = await self.utils.update_channels(
+            ctx.guild,
+            [channel],
+            AnonymityMode.BASIC_ANONYMITY.value,
+            False
+        )
+        
+        if results["success"]:
+            await ctx.send(f"Successfully disabled anonymous messaging in {channel.mention}")
+        else:
+            await ctx.send(f"Failed to disable anonymous messaging in {channel.mention}")
+            
+    @_channel.command(name="list")
+    async def channel_list(self, ctx: commands.Context):
+        """
+        List all channels with anonymous messaging enabled and their modes.
+        
+        Example: [p]anonymous channel list
+        """
+        guild_data = await self.config.guild(ctx.guild).all()
+        enabled_channels = guild_data["enabled_channels"]
+        channel_modes = guild_data["channel_modes"]
+        
+        if not enabled_channels:
+            await ctx.send("No channels have anonymous messaging enabled.")
             return
             
-        results = await self.utils.update_channels(ctx.guild, channels, AnonymityMode.BASIC_ANONYMITY.value, False)
-        
-        # Format response
-        response = []
-        if results["success"]:
-            response.append(f"Successfully disabled anonymous messaging in: {', '.join(results['success'])}")
-        if results["failed"]:
-            response.append(f"Failed to disable in: {', '.join(results['failed'])}")
-            
+        # Build response
+        response = ["**Channels with Anonymous Messaging:**"]
+        for channel_id in enabled_channels:
+            channel = ctx.guild.get_channel(channel_id)
+            if channel:
+                mode = channel_modes.get(str(channel_id), AnonymityMode.BASIC_ANONYMITY.value)
+                response.append(f"• {channel.mention}: {mode}")
+                
         await ctx.send("\n".join(response))
         
-    @_anonymous.command(name="setrolemodes")
-    async def set_role_modes(
-        self, 
-        ctx: commands.Context, 
-        mode: str,
-        roles: commands.Greedy[discord.Role]
+    @_anonymous.group(name="role")
+    async def _role(self, ctx: commands.Context):
+        """Role management commands."""
+        pass
+        
+    @_role.command(name="add")
+    async def role_add(
+        self,
+        ctx: commands.Context,
+        role: discord.Role,
+        mode: str
     ):
         """
-        Set the default anonymity mode for multiple roles.
+        Add a role with specified anonymity mode.
         
-        This will override channel-specific settings.
+        This will override channel-specific settings for users with this role.
         
-        Example: [p]anonymous setrolemodes basic_anonymity @role1 @role2 @role3
+        Example: [p]anonymous role add @role basic_anonymity
         """
-        if not roles:
-            await ctx.send("Please specify at least one role.")
-            return
-            
         try:
-            results = await self.utils.update_roles(ctx.guild, roles, mode)
+            results = await self.utils.update_roles(ctx.guild, [role], mode)
             
-            # Format response
-            response = []
             if results["success"]:
-                response.append(f"Successfully set anonymity mode for roles: {', '.join(results['success'])}")
-            if results["failed"]:
-                response.append(f"Failed to set mode for roles: {', '.join(results['failed'])}")
+                await ctx.send(f"Successfully set anonymity mode for role {role.name} to: {mode}")
+            else:
+                await ctx.send(f"Failed to set anonymity mode for role {role.name}")
                 
-            await ctx.send("\n".join(response))
-            
         except ValueError as e:
             await ctx.send(str(e))
+            
+    @_role.command(name="remove")
+    async def role_remove(
+        self,
+        ctx: commands.Context,
+        role: discord.Role
+    ):
+        """
+        Remove a role's anonymity mode settings.
+        
+        Example: [p]anonymous role remove @role
+        """
+        async with self.config.guild(ctx.guild).role_modes() as role_modes:
+            if str(role.id) in role_modes:
+                del role_modes[str(role.id)]
+                await ctx.send(f"Successfully removed anonymity mode for role {role.name}")
+            else:
+                await ctx.send(f"Role {role.name} has no anonymity mode set")
+                
+    @_role.command(name="list")
+    async def role_list(self, ctx: commands.Context):
+        """
+        List all roles with their anonymity modes.
+        
+        Example: [p]anonymous role list
+        """
+        role_modes = await self.config.guild(ctx.guild).role_modes()
+        
+        if not role_modes:
+            await ctx.send("No roles have anonymity modes set.")
+            return
+            
+        # Build response
+        response = ["**Roles with Anonymity Modes:**"]
+        for role_id, mode in role_modes.items():
+            role = ctx.guild.get_role(int(role_id))
+            if role:
+                response.append(f"• {role.name}: {mode}")
+                
+        await ctx.send("\n".join(response))
             
     @_anonymous.command(name="lookup")
     async def lookup_user(self, ctx: commands.Context, anonymous_id: str):
