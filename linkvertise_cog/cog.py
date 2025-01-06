@@ -17,7 +17,7 @@ class LinkvertiseCog(commands.Cog):
         self.config = Config.get_conf(self, identifier=1234567890)
         default_guild = {
             "account_id": None,
-            "whitelisted_role_id": None,
+            "whitelisted_role_ids": [],
             "footer_text": DEFAULT_FOOTER,
             "whitelisted_domains": [],
             "shortio_api_key": None,
@@ -44,11 +44,11 @@ class LinkvertiseCog(commands.Cog):
         if not account_id:
             return
             
-        # Check whitelist role
-        whitelisted_role_id = await guild_config.whitelisted_role_id()
-        if whitelisted_role_id:
+        # Check whitelist roles
+        whitelisted_role_ids = await guild_config.whitelisted_role_ids()
+        if whitelisted_role_ids:
             member_roles = [role.id for role in message.author.roles]
-            if whitelisted_role_id in member_roles:
+            if any(role_id in member_roles for role_id in whitelisted_role_ids):
                 return
                 
         # Get whitelist and shortio settings
@@ -132,12 +132,49 @@ class LinkvertiseCog(commands.Cog):
         """Linkvertise settings command group"""
         await ctx.send_help(ctx.command)
     
-    @linkvertise_group.command(name="setrole")
+    @linkvertise_group.command(name="addrole")
     @commands.admin_or_permissions(administrator=True)
-    async def set_whitelisted_role(self, ctx: commands.Context, role: discord.Role):
-        """Set whitelist role"""
-        await self.config.guild(ctx.guild).whitelisted_role_id.set(role.id)
-        await ctx.send(f"Set {role.name} as whitelist role")
+    async def add_whitelisted_role(self, ctx: commands.Context, role: discord.Role):
+        """Add a role to the whitelist"""
+        async with self.config.guild(ctx.guild).whitelisted_role_ids() as role_ids:
+            if role.id in role_ids:
+                await ctx.send(f"{role.name} is already in the whitelist")
+                return
+            role_ids.append(role.id)
+        await ctx.send(f"Added {role.name} to whitelist roles")
+
+    @linkvertise_group.command(name="removerole")
+    @commands.admin_or_permissions(administrator=True)
+    async def remove_whitelisted_role(self, ctx: commands.Context, role: discord.Role):
+        """Remove a role from the whitelist"""
+        async with self.config.guild(ctx.guild).whitelisted_role_ids() as role_ids:
+            if role.id not in role_ids:
+                await ctx.send(f"{role.name} is not in the whitelist")
+                return
+            role_ids.remove(role.id)
+        await ctx.send(f"Removed {role.name} from whitelist roles")
+
+    @linkvertise_group.command(name="listroles")
+    @commands.admin_or_permissions(administrator=True)
+    async def list_whitelisted_roles(self, ctx: commands.Context):
+        """List all whitelisted roles"""
+        role_ids = await self.config.guild(ctx.guild).whitelisted_role_ids()
+        if not role_ids:
+            await ctx.send("No roles are whitelisted")
+            return
+            
+        roles = []
+        for role_id in role_ids:
+            role = ctx.guild.get_role(role_id)
+            if role:
+                roles.append(role.name)
+            
+        if not roles:
+            await ctx.send("No valid whitelisted roles found")
+            return
+            
+        roles_list = "\n".join(f"• {role}" for role in roles)
+        await ctx.send(f"Whitelisted roles:\n{roles_list}")
     
     @linkvertise_group.command(name="setid")
     @commands.admin_or_permissions(administrator=True)

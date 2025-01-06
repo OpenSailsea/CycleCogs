@@ -1,0 +1,12 @@
+{
+    "name": "Anonymous",
+    "author": ["Cline"],
+    "description": "A customizable anonymous messaging system with multiple anonymity modes and channel-specific configurations.",
+    "short": "Anonymous messaging system",
+    "tags": ["anonymous", "messaging", "utility"],
+    "end_user_data_statement": "This cog stores user IDs for anonymous mode identification and tracking.",
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
