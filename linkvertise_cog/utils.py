@@ -70,8 +70,8 @@ def is_valid_domain(domain: str, whitelisted_domains: List[str] = None) -> bool:
     except ValueError:
         pass  # Not IP address, continue checking
         
-    # Check domain format
-    if not re.match(r'^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z]{2,})+$', domain):
+    # Check domain format - allow multiple subdomains
+    if not re.match(r'^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$', domain):
         return False
         
     return True
