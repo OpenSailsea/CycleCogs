@@ -1,6 +1,6 @@
 {
     "name": "StatusRole",
-    "author": ["Cycle"],
+    "author": ["Cycle Bai"],
     "description": "Automatically assign roles based on user status",
     "install_msg": "Status role management has been installed",
     "short": "Status role management",
