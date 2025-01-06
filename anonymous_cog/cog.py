@@ -112,6 +112,37 @@ class Anonymous(commands.Cog):
         else:
             await ctx.send(f"Failed to disable anonymous messaging in {channel.mention}")
             
+    @_channel.command(name="set")
+    async def channel_set(
+        self,
+        ctx: commands.Context,
+        channel: discord.TextChannel,
+        mode: str
+    ):
+        """
+        Change the anonymity mode for an enabled channel.
+        
+        Modes:
+        - no_anonymity: Uses real username and avatar
+        - basic_anonymity: Uses anonymous_{user_id}_{random} format
+        - full_anonymity: Uses just 'anonymous'
+        
+        Example: [p]anonymous channel set #channel basic_anonymity
+        """
+        guild_data = await self.config.guild(ctx.guild).all()
+        if channel.id not in guild_data["enabled_channels"]:
+            await ctx.send(f"{channel.mention} is not enabled for anonymous messaging. Use `channel add` first.")
+            return
+            
+        try:
+            results = await self.utils.update_channels(ctx.guild, [channel], mode, True)
+            if results["success"]:
+                await ctx.send(f"Successfully updated anonymity mode for {channel.mention} to: {mode}")
+            else:
+                await ctx.send(f"Failed to update anonymity mode for {channel.mention}")
+        except ValueError as e:
+            await ctx.send(str(e))
+            
     @_channel.command(name="list")
     async def channel_list(self, ctx: commands.Context):
         """
@@ -185,6 +216,32 @@ class Anonymous(commands.Cog):
             else:
                 await ctx.send(f"Role {role.name} has no anonymity mode set")
                 
+    @_role.command(name="set")
+    async def role_set(
+        self,
+        ctx: commands.Context,
+        role: discord.Role,
+        mode: str
+    ):
+        """
+        Change the anonymity mode for a role.
+        
+        Example: [p]anonymous role set @role basic_anonymity
+        """
+        role_modes = await self.config.guild(ctx.guild).role_modes()
+        if str(role.id) not in role_modes:
+            await ctx.send(f"Role {role.name} has no anonymity mode set. Use `role add` first.")
+            return
+            
+        try:
+            results = await self.utils.update_roles(ctx.guild, [role], mode)
+            if results["success"]:
+                await ctx.send(f"Successfully updated anonymity mode for role {role.name} to: {mode}")
+            else:
+                await ctx.send(f"Failed to update anonymity mode for role {role.name}")
+        except ValueError as e:
+            await ctx.send(str(e))
+            
     @_role.command(name="list")
     async def role_list(self, ctx: commands.Context):
         """
@@ -205,6 +262,71 @@ class Anonymous(commands.Cog):
             if role:
                 response.append(f"• {role.name}: {mode}")
                 
+        await ctx.send("\n".join(response))
+            
+    @_anonymous.group(name="settings")
+    async def _settings(self, ctx: commands.Context):
+        """Configure anonymous messaging settings."""
+        pass
+        
+    @_settings.command(name="nameformat")
+    async def settings_nameformat(
+        self,
+        ctx: commands.Context,
+        name_format: str
+    ):
+        """
+        Set the format for basic anonymity mode usernames.
+        
+        Available placeholders:
+        {user_id} - The user's unique anonymous ID (4 digits)
+        {random} - A random number (3 digits)
+        
+        Default: anonymous_{user_id}_{random}
+        
+        Example: [p]anonymous settings nameformat anon_{user_id}_{random}
+        """
+        if not all(ph in name_format for ph in ["{user_id}", "{random}"]):
+            await ctx.send("Format must include both {user_id} and {random} placeholders.")
+            return
+            
+        await self.config.anonymous_name_format.set(name_format)
+        await ctx.send(f"Anonymous name format updated to: {name_format}")
+        
+    @_settings.command(name="avatar")
+    async def settings_avatar(
+        self,
+        ctx: commands.Context,
+        url: str = None
+    ):
+        """
+        Set the default avatar URL for anonymous messages.
+        
+        Leave URL empty to reset to Discord's default avatar.
+        
+        Example: [p]anonymous settings avatar https://example.com/avatar.png
+        """
+        await self.config.webhook_avatar_url.set(url or "")
+        if url:
+            await ctx.send(f"Anonymous avatar updated to: {url}")
+        else:
+            await ctx.send("Anonymous avatar reset to default")
+            
+    @_settings.command(name="show")
+    async def settings_show(self, ctx: commands.Context):
+        """
+        Show current anonymous messaging settings.
+        
+        Example: [p]anonymous settings show
+        """
+        global_settings = await self.config.all()
+        
+        response = [
+            "**Anonymous Messaging Settings:**",
+            f"• Name Format: {global_settings['anonymous_name_format']}",
+            f"• Avatar URL: {global_settings['webhook_avatar_url'] or 'Default Discord Avatar'}"
+        ]
+        
         await ctx.send("\n".join(response))
             
     @_anonymous.command(name="lookup")
