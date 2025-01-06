@@ -161,9 +161,6 @@ class AnonymousUtils:
     ) -> None:
         """Send a message through the webhook with appropriate anonymity settings."""
         try:
-            # Delete original message
-            await message.delete()
-
             # Format webhook name
             webhook_name = await self.format_webhook_name(
                 mode,

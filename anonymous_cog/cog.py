@@ -363,6 +363,9 @@ class Anonymous(commands.Cog):
         guild_data = await self.config.guild(message.guild).all()
         if message.channel.id not in guild_data["enabled_channels"]:
             return
+
+        # Delete original message
+        await message.delete()
             
         # Get anonymity mode
         mode = await self.utils.get_anonymity_mode(
