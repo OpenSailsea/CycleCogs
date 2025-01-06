@@ -161,6 +161,9 @@ class AnonymousUtils:
     ) -> None:
         """Send a message through the webhook with appropriate anonymity settings."""
         try:
+            # Delete original message
+            await message.delete()
+
             # Format webhook name
             webhook_name = await self.format_webhook_name(
                 mode,
@@ -182,9 +185,6 @@ class AnonymousUtils:
                 avatar_url=avatar_url,
                 files=[await a.to_file() for a in message.attachments]
             )
-            
-            # Delete original message
-            await message.delete()
             
         except Exception as e:
             await message.channel.send(
