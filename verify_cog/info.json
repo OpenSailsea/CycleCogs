@@ -1,0 +1,10 @@
+{
+    "name": "VerifyCog",
+    "author": ["Cycle Bai"],
+    "description": "A verification system with button interaction and role assignment",
+    "short": "Verification system for Discord servers",
+    "tags": ["verification", "roles", "utility"],
+    "requirements": ["discord.py>=2.0.0"],
+    "min_bot_version": "3.5.0",
+    "end_user_data_statement": "This cog stores role IDs for verification purposes."
+}
