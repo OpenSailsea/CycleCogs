@@ -18,7 +18,10 @@ class LinkvertiseCog(commands.Cog):
         default_guild = {
             "account_id": None,
             "whitelisted_role_id": None,
-            "footer_text": DEFAULT_FOOTER
+            "footer_text": DEFAULT_FOOTER,
+            "whitelisted_domains": [],
+            "shortio_api_key": None,
+            "shortio_domain": None
         }
         self.config.register_guild(**default_guild)
         self.linkvertise_client = LinkvertiseClient()
@@ -48,8 +51,13 @@ class LinkvertiseCog(commands.Cog):
             if whitelisted_role_id in member_roles:
                 return
                 
+        # Get whitelist and shortio settings
+        whitelisted_domains = await guild_config.whitelisted_domains()
+        shortio_api_key = await guild_config.shortio_api_key()
+        shortio_domain = await guild_config.shortio_domain()
+        
         # Extract and check links
-        url_infos = extract_urls(message.content)
+        url_infos = extract_urls(message.content, whitelisted_domains)
         if not url_infos:
             return
             
@@ -58,7 +66,13 @@ class LinkvertiseCog(commands.Cog):
         offset = 0
         
         for url, start, end in url_infos:
-            new_url = convert_to_linkvertise(url, self.linkvertise_client, account_id)
+            new_url = await convert_to_linkvertise(
+                url, 
+                self.linkvertise_client, 
+                account_id,
+                shortio_api_key,
+                shortio_domain
+            )
             if new_url == url:  # Conversion failed
                 continue
                 
@@ -145,6 +159,61 @@ class LinkvertiseCog(commands.Cog):
         """Reset footer text to default"""
         await self.config.guild(ctx.guild).footer_text.set(DEFAULT_FOOTER)
         await ctx.send("Reset footer text to default")
+
+    @linkvertise_group.command(name="whitelist")
+    @commands.admin_or_permissions(administrator=True)
+    async def manage_whitelist(self, ctx: commands.Context, action: str, domain: Optional[str] = None):
+        """Manage domain whitelist
+        
+        Examples:
+        [p]linkvertise whitelist add example.com
+        [p]linkvertise whitelist remove example.com
+        [p]linkvertise whitelist list
+        """
+        if action.lower() not in ["add", "remove", "list"]:
+            await ctx.send("Invalid action. Available actions: add, remove, list")
+            return
+
+        whitelisted_domains = await self.config.guild(ctx.guild).whitelisted_domains()
+        
+        if action.lower() == "list":
+            if not whitelisted_domains:
+                await ctx.send("Whitelist is empty")
+            else:
+                domains_list = "\n".join(whitelisted_domains)
+                await ctx.send(f"Whitelisted domains:\n{domains_list}")
+            return
+            
+        if not domain:
+            await ctx.send("Please provide a domain")
+            return
+            
+        if action.lower() == "add":
+            if domain in whitelisted_domains:
+                await ctx.send(f"{domain} is already whitelisted")
+            else:
+                whitelisted_domains.append(domain)
+                await self.config.guild(ctx.guild).whitelisted_domains.set(whitelisted_domains)
+                await ctx.send(f"Added {domain} to whitelist")
+        elif action.lower() == "remove":
+            if domain not in whitelisted_domains:
+                await ctx.send(f"{domain} is not in whitelist")
+            else:
+                whitelisted_domains.remove(domain)
+                await self.config.guild(ctx.guild).whitelisted_domains.set(whitelisted_domains)
+                await ctx.send(f"Removed {domain} from whitelist")
+
+    @linkvertise_group.command(name="shortio")
+    @commands.admin_or_permissions(administrator=True)
+    async def set_shortio(self, ctx: commands.Context, api_key: str, domain: str):
+        """Set Short.io API configuration
+        
+        Example:
+        [p]linkvertise shortio sk_xxxxx your-domain.com
+        """
+        await self.config.guild(ctx.guild).shortio_api_key.set(api_key)
+        await self.config.guild(ctx.guild).shortio_domain.set(domain)
+        await ctx.send("Updated Short.io settings")
             
     async def cog_unload(self):
         """Close session when cog is unloaded"""
